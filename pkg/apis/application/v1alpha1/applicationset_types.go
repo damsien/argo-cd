@@ -95,9 +95,14 @@ type ApplicationSetRolloutStep struct {
 }
 
 type ApplicationMatchExpression struct {
-	Key      string   `json:"key,omitempty" protobuf:"bytes,1,opt,name=key"`
-	Operator string   `json:"operator,omitempty" protobuf:"bytes,2,opt,name=operator"`
-	Values   []string `json:"values,omitempty" protobuf:"bytes,3,opt,name=values"`
+	Key      string `json:"key,omitempty" protobuf:"bytes,1,opt,name=key"`
+	Operator string `json:"operator,omitempty" protobuf:"bytes,2,opt,name=operator"`
+	// +kubebuilder:validation:Optional
+	Values []string `json:"values,omitempty" protobuf:"bytes,3,opt,name=values"`
+	// +kubebuilder:validation:Optional
+	ValuesString string `json:"valuesString,omitempty" protobuf:"bytes,4,opt,name=valuesString"`
+	// If needed, either Values or ValuesString must be set, but not both.
+	// +kubebuilder:validation:XValidation:rule="!(self.values != null && self.valuesString != null)",message="Only one of 'values' or 'valuesString' must be set"
 }
 
 // ApplicationsSyncPolicy representation

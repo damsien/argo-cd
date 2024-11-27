@@ -15772,6 +15772,8 @@ spec:
                                     items:
                                       type: string
                                     type: array
+                                  valuesString:
+                                    type: string
                                 type: object
                               type: array
                             maxUpdate:

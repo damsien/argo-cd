@@ -6128,9 +6128,14 @@
         },
         "values": {
           "type": "array",
+          "title": "+kubebuilder:validation:Optional",
           "items": {
             "type": "string"
           }
+        },
+        "valuesString": {
+          "type": "string",
+          "title": "+kubebuilder:validation:Optional"
         }
       }
     },

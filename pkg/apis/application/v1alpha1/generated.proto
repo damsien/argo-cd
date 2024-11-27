@@ -173,7 +173,11 @@ message ApplicationMatchExpression {
 
   optional string operator = 2;
 
+  // +kubebuilder:validation:Optional
   repeated string values = 3;
+
+  // +kubebuilder:validation:Optional
+  optional string valuesString = 4;
 }
 
 message ApplicationPreservedFields {

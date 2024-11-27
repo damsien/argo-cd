@@ -2360,6 +2360,69 @@ func TestSetApplicationSetStatusCondition(t *testing.T) {
 				assert.True(t, isProgressingCondition, "RolloutProgressing should be set for rollout strategy appset")
 			},
 		},
+		{
+			appset: v1alpha1.ApplicationSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "argocd",
+				},
+				Spec: v1alpha1.ApplicationSetSpec{
+					Generators: []v1alpha1.ApplicationSetGenerator{
+						{List: &v1alpha1.ListGenerator{
+							Elements: []apiextensionsv1.JSON{{
+								Raw: []byte(`{"cluster": "my-cluster","url": "https://kubernetes.default.svc"}`),
+							}},
+						}},
+					},
+					Template: v1alpha1.ApplicationSetTemplate{},
+					Strategy: &v1alpha1.ApplicationSetStrategy{
+						Type: "RollingSync",
+						RollingSync: &v1alpha1.ApplicationSetRolloutStrategy{
+							Steps: []v1alpha1.ApplicationSetRolloutStep{
+								{
+									MatchExpressions: []v1alpha1.ApplicationMatchExpression{
+										{
+											Key:          "test",
+											Operator:     "In",
+											ValuesString: "test,anotherKey",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			conditions: []v1alpha1.ApplicationSetCondition{
+				{
+					Type:    v1alpha1.ApplicationSetConditionResourcesUpToDate,
+					Message: "All applications have been generated successfully",
+					Reason:  v1alpha1.ApplicationSetReasonApplicationSetUpToDate,
+					Status:  v1alpha1.ApplicationSetConditionStatusTrue,
+				},
+				{
+					Type:    v1alpha1.ApplicationSetConditionRolloutProgressing,
+					Message: "ApplicationSet Rollout Rollout started",
+					Reason:  v1alpha1.ApplicationSetReasonApplicationSetUpToDate,
+					Status:  v1alpha1.ApplicationSetConditionStatusTrue,
+				},
+			},
+			testfunc: func(t *testing.T, appset v1alpha1.ApplicationSet) {
+				t.Helper()
+				assert.Len(t, appset.Status.Conditions, 4)
+
+				isProgressingCondition := false
+
+				for _, condition := range appset.Status.Conditions {
+					if condition.Type == v1alpha1.ApplicationSetConditionRolloutProgressing {
+						isProgressingCondition = true
+						break
+					}
+				}
+
+				assert.True(t, isProgressingCondition, "RolloutProgressing should be set for rollout strategy appset using valuesString matchExpressions")
+			},
+		},
 	}
 
 	kubeclientset := kubefake.NewSimpleClientset([]runtime.Object{}...)
@@ -6666,4 +6729,80 @@ func TestMigrateStatus(t *testing.T) {
 			assert.Equal(t, tc.expectedStatus, tc.appset.Status)
 		})
 	}
+}
+
+func TestStringValuesToValuesConversion(t *testing.T) {
+	matchExpression1 := &v1alpha1.ApplicationMatchExpression{
+		Key:          "test",
+		Operator:     "In",
+		ValuesString: "test, test2  , test3,test4",
+	}
+	expectedValues1 := []string{"test", "test2", "test3", "test4"}
+	values, err := getMatchExpressionValues(*matchExpression1)
+	require.NoError(t, err)
+	assert.Equal(t, expectedValues1, values)
+
+	matchExpression2 := &v1alpha1.ApplicationMatchExpression{
+		Key:          "test",
+		Operator:     "In",
+		ValuesString: "test,test2,test3,test4",
+	}
+	expectedValues2 := []string{"test", "test2", "test3", "test4"}
+	values, err = getMatchExpressionValues(*matchExpression2)
+	require.NoError(t, err)
+	assert.Equal(t, expectedValues2, values)
+
+	matchExpression3 := &v1alpha1.ApplicationMatchExpression{
+		Key:          "test",
+		Operator:     "In",
+		ValuesString: " test,test2,test3,test4 ",
+	}
+	expectedValues3 := []string{" test", "test2", "test3", "test4 "}
+	values, err = getMatchExpressionValues(*matchExpression3)
+	require.NoError(t, err)
+	assert.Equal(t, expectedValues3, values)
+
+	matchExpression4 := &v1alpha1.ApplicationMatchExpression{
+		Key:          "test",
+		Operator:     "In",
+		ValuesString: "test",
+	}
+	expectedValues4 := []string{"test"}
+	values, err = getMatchExpressionValues(*matchExpression4)
+	require.NoError(t, err)
+	assert.Equal(t, expectedValues4, values)
+
+	matchExpression5 := &v1alpha1.ApplicationMatchExpression{
+		Key:          "test",
+		Operator:     "In",
+		ValuesString: "test",
+		Values:       []string{"test"},
+	}
+	_, err = getMatchExpressionValues(*matchExpression5)
+	require.Error(t, err)
+
+	matchExpression6 := &v1alpha1.ApplicationMatchExpression{
+		Key:      "test",
+		Operator: "In",
+		Values:   []string{"test", "test2"},
+	}
+	expectedValues6 := []string{"test", "test2"}
+	values, err = getMatchExpressionValues(*matchExpression6)
+	require.NoError(t, err)
+	assert.Equal(t, expectedValues6, values)
+
+	matchExpression7 := &v1alpha1.ApplicationMatchExpression{
+		Key:      "test",
+		Operator: "In",
+		Values:   []string{},
+	}
+	_, err = getMatchExpressionValues(*matchExpression7)
+	require.Error(t, err)
+
+	matchExpression8 := &v1alpha1.ApplicationMatchExpression{
+		Key:      "test",
+		Operator: "In",
+	}
+	_, err = getMatchExpressionValues(*matchExpression8)
+	require.Error(t, err)
 }

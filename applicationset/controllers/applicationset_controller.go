@@ -16,8 +16,10 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 	"runtime/debug"
 	"sort"
 	"strconv"
@@ -938,6 +940,22 @@ func (r *ApplicationSetReconciler) buildAppDependencyList(logCtx *log.Entry, app
 	return appDependencyList, appStepMap
 }
 
+func getMatchExpressionValues(matchExpression argov1alpha1.ApplicationMatchExpression) ([]string, error) {
+	if len(matchExpression.Values) > 0 && matchExpression.ValuesString != "" {
+		return nil, errors.New("only one of 'values' or 'valuesString' must be set")
+	}
+	if matchExpression.ValuesString != "" {
+		re := regexp.MustCompile(`\s*,\s*`)
+		values := re.Split(matchExpression.ValuesString, -1)
+		return values, nil
+	}
+	if len(matchExpression.Values) > 0 {
+		return matchExpression.Values, nil
+	}
+
+	return nil, errors.New("nor of the 'values' and 'valuesString' fields are defined")
+}
+
 func labelMatchedExpression(logCtx *log.Entry, val string, matchExpression argov1alpha1.ApplicationMatchExpression) bool {
 	if matchExpression.Operator != "In" && matchExpression.Operator != "NotIn" {
 		logCtx.Errorf("skipping AppSet rollingUpdate step Application selection, invalid matchExpression operator provided: %q ", matchExpression.Operator)
@@ -948,7 +966,13 @@ func labelMatchedExpression(logCtx *log.Entry, val string, matchExpression argov
 	// if operator == NotIn, default to true
 	valueMatched := matchExpression.Operator == "NotIn"
 
-	for _, value := range matchExpression.Values {
+	// Get values from Values or ValuesString
+	values, err := getMatchExpressionValues(matchExpression)
+	if err != nil {
+		return false
+	}
+
+	for _, value := range values {
 		if val == value {
 			// first "In" match returns true
 			// first "NotIn" match returns false
